@@ -1,14 +1,20 @@
-FROM python:3.10-slim
+FROM python:3.11-slim
+
 WORKDIR /app
-RUN apt-get update && apt-get install -y \
-    libgl1 \
-    libglib2.0-0 \
-    gcc \
-    libpq-dev \
+
+# System deps for OpenCV and PostgreSQL
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 libglib2.0-0 libpq-dev gcc curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY backend/ ./backend/
-ENV PYTHONPATH=/app
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+COPY . .
+
+# Ensure screenshots directory exists at container level
+RUN mkdir -p /data/screenshots
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
