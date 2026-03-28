@@ -1,82 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Detection System</title>
-    <link rel="stylesheet" href="styles.css">
-</head>
-
-<body>
-    <div class="sidebar" id="sidebar">
-        <h2>Cameras</h2>
-        <div id="camera-list"></div>
-        <button id="add-camera-btn">Add IP Camera</button>
-        <button id="nav-archive" onclick="window.location.href='archive.html'">Archive</button>
-        <button id="nav-analytics" onclick="window.location.href='analytics.html'">Analytics</button>
-        <button id="nav-trash" onclick="window.location.href='trash.html'">Trash</button>
-    </div>
-
-    <div class="main-content">
-        <div class="top-bar">
-            <div class="top-bar-left">
-                <button class="toggle-btn" onclick="document.getElementById('sidebar').classList.toggle('collapsed')"
-                    title="Toggle Menu">
-                    &#9776;
-                </button>
-                <div class="header">
-                    <h1>LIVE MONITORING</h1>
-                </div>
-            </div>
-
-            <div class="top-bar-right">
-                <button class="toggle-btn"
-                    onclick="document.getElementById('incidents-sidebar').classList.toggle('collapsed')"
-                    title="Toggle Alerts">
-                    Alerts (<span id="alert-count-top">0</span>)
-                </button>
-            </div>
-        </div>
-
-        <div class="video-grid" id="video-grid">
-        </div>
-    </div>
-
-    <div class="incidents-sidebar" id="incidents-sidebar">
-        <h2>INCIDENT ALERTS (<span id="alert-count">0</span>)</h2>
-        <div id="incidents-list">
-        </div>
-    </div>
-
-    <div id="add-camera-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-btn">&times;</span>
-            <h3>Add New Camera</h3>
-            <input type="text" id="cam-name" placeholder="Camera Name">
-            <input type="text" id="cam-url" placeholder="RTSP/HTTP URL (e.g. http://192.168.1.5:8080/video)">
-            <input type="text" id="cam-loc" placeholder="Location">
-            <button id="submit-camera">Deploy</button>
-        </div>
-    </div>
-
-    <div id="fix-type-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-btn-fix">&times;</span>
-            <h3>Correct Equipment Type</h3>
-            <select id="correct-type-select">
-                <option value="APC">APC</option>
-                <option value="TANK">TANK</option>
-                <option value="CAR">CAR</option>
-                <option value="TRUCK">TRUCK</option>
-                <option value="ART">ART</option>
-                <option value="MLRS">MLRS</option>
-            </select>
-            <button id="submit-fix">Update & Confirm</button>
-        </div>
-    </div>
-
-    <script src="app.js"></script>
-</body>
-
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SEVAT</title>
+    <meta name="description" content="Військова система виявлення загроз в реальному часі" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>
