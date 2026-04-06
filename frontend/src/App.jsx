@@ -9,7 +9,7 @@ import Agent from "./pages/Agent";
 import Trash from "./pages/Trash";
 import { LanguageProvider, useLanguage } from "./context/LanguageContext";
 
-// ── Toast notification component ─────────────────────────────────────────────
+// Toast notification component
 function Toast({ alert, onDismiss }) {
     const { t } = useLanguage();
 
@@ -57,7 +57,7 @@ function Toast({ alert, onDismiss }) {
     );
 }
 
-// ── Alert WebSocket hook ──────────────────────────────────────────────────────
+// Alert WebSocket hook
 function useAlertSocket(onAlert) {
     const wsRef = useRef(null);
     const callbackRef = useRef(onAlert);
@@ -87,7 +87,7 @@ function useAlertSocket(onAlert) {
     }, []);
 }
 
-// ── Inner app (needs LanguageProvider) ────────────────────────────────────────
+// Inner app
 function AppInner() {
     const { t } = useLanguage();
     const [toasts, setToasts] = useState([]);
@@ -98,7 +98,7 @@ function AppInner() {
 
         if (Notification.permission === "granted") {
             const label = t.classLabels[alert.class_name] || alert.class_name;
-            new Notification(`⚠ ${t.toast.detected}: ${label} (${alert.confidence_pct}%)`, {
+            new Notification(`${t.toast.detected}: ${label} (${alert.confidence_pct}%)`, {
                 body: `${alert.camera_name} · ${alert.camera_location || ""}`,
                 icon: "/favicon.ico",
                 tag: `det-${alert.detection_id}`,

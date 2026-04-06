@@ -1,7 +1,3 @@
-"""
-Camera detection worker — one thread per camera.
-YOLO model is loaded ONCE at worker start, never per frame.
-"""
 import asyncio
 import json
 import logging
@@ -21,11 +17,11 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# ── Ukrainian class labels ──────────────────────────────────────────────────
+# Class labels
 CLASS_LABELS_UA: Dict[str, str] = {
-    "APC":     "БТР",      # manual correction class / backward compat
-    "IFV":     "БМП",      # normalized name saved to DB for model's APC-IFV
-    "APC-IFV": "БМП",      # raw model output — kept for display of old records
+    "APC":     "БТР",
+    "IFV":     "БМП",
+    "APC-IFV": "БМП",
     "TANK":    "Танк",
     "CAR":     "Автомобіль",
     "TRUCK":   "Вантажівка",
@@ -34,25 +30,24 @@ CLASS_LABELS_UA: Dict[str, str] = {
 }
 KNOWN_CLASSES: Set[str] = set(CLASS_LABELS_UA.keys())
 
-# ── Normalize raw model class → clean DB class ───────────────────────────────
-# The trained model may output compound names; we normalize before saving to DB
+
 CLASS_NORMALIZE: Dict[str, str] = {
-    "APC-IFV": "IFV",  # model output → clean class name stored in DB
+    "APC-IFV": "IFV", 
 }
 
-# ── Worker registry ─────────────────────────────────────────────────────────
+# Worker registry
 _workers: Dict[int, "CameraWorker"] = {}
 _workers_lock = threading.Lock()
 
-# ── WebSocket subscriber registry (video frames) ────────────────────────────
+# WebSocket subscriber registry
 _ws_subscribers: Dict[int, Set] = {}
 _ws_lock = asyncio.Lock()
 
-# ── Alert subscriber registry (operator notifications) ──────────────────────
+# Alert subscriber registry
 _alert_subscribers: Set = set()
 _alert_lock = asyncio.Lock()
 
-# ── Shared DB engine (created once, reused across detections) ───────────────
+# Shared DB engine
 _db_engine = None
 _db_session_factory = None
 _db_engine_lock = threading.Lock()
@@ -70,7 +65,7 @@ def _get_db_session_factory():
     return _db_session_factory
 
 
-# ── Public API ───────────────────────────────────────────────────────────────
+# Public API
 
 def get_workers() -> Dict[int, "CameraWorker"]:
     return _workers
@@ -98,19 +93,16 @@ async def broadcast_frame(camera_id: int, frame_bytes: bytes):
 
 
 async def register_alert_ws(queue):
-    """Register a WebSocket queue for operator alert notifications."""
     async with _alert_lock:
         _alert_subscribers.add(queue)
 
 
 async def unregister_alert_ws(queue):
-    """Unregister a WebSocket queue for operator alert notifications."""
     async with _alert_lock:
         _alert_subscribers.discard(queue)
 
 
 async def broadcast_alert(alert_data: dict):
-    """Broadcast a detection alert to all connected operator WebSockets."""
     async with _alert_lock:
         subs = list(_alert_subscribers)
     msg = json.dumps(alert_data, ensure_ascii=False, default=str)
@@ -120,9 +112,7 @@ async def broadcast_alert(alert_data: dict):
         except Exception:
             pass
 
-
-# Мінімальний інтервал між сповіщеннями про один і той самий клас об'єкта (секунди)
-DETECTION_COOLDOWN_SECONDS = 30
+DETECTION_COOLDOWN_SECONDS = 10
 
 
 class CameraWorker:
@@ -134,7 +124,6 @@ class CameraWorker:
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
-        # Cooldown: зберігає час останнього збереженого виявлення для кожного класу
         self._last_detection_time: Dict[str, float] = {}
 
     def start(self, loop: asyncio.AbstractEventLoop):
@@ -155,10 +144,8 @@ class CameraWorker:
         return self._thread is not None and self._thread.is_alive()
 
     def _open_capture(self) -> Optional[cv2.VideoCapture]:
-        """Open video capture with IP WebCam / MJPEG / RTSP support."""
         url = self.stream_url
 
-        # For HTTP MJPEG streams (IP WebCam), try with FFMPEG backend first
         if url.startswith("http"):
             cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
             if not cap.isOpened():
@@ -170,7 +157,6 @@ class CameraWorker:
             cap.release()
             return None
 
-        # RTSP / other streams
         cap = cv2.VideoCapture(url)
         if cap.isOpened():
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
@@ -179,16 +165,11 @@ class CameraWorker:
         return None
 
     def _run(self):
-        # Try to load YOLO model — but DO NOT stop streaming if it fails
         model = None
         try:
             import torch
             import functools
 
-            # PyTorch ≥2.6 changed default weights_only to True which breaks
-            # ultralytics YOLO models (contains custom classes like Sequential,
-            # DetectionModel, etc.). We patch torch.load globally within this
-            # thread to force weights_only=False for our trusted local model file.
             _orig_torch_load = torch.load
 
             @functools.wraps(_orig_torch_load)
@@ -213,7 +194,6 @@ class CameraWorker:
                     f"Classes: {list(model.names.values())}"
                 )
 
-            # Restore original torch.load after model is loaded
             torch.load = _orig_torch_load
 
         except Exception as e:
@@ -248,7 +228,6 @@ class CameraWorker:
                     if frame_count % settings.frame_skip != 0:
                         continue
 
-                    # Run detection if model available, else broadcast raw frame
                     if model is not None:
                         annotated = self._process_frame(model, frame)
                     else:
@@ -291,34 +270,29 @@ class CameraWorker:
                         logger.debug(f"Unknown class '{raw_class}' — skipping")
                     continue
 
-                # Normalize raw model class to clean DB class (e.g. APC-IFV → IFV)
                 db_class = CLASS_NORMALIZE.get(raw_class, raw_class)
                 label_ua = CLASS_LABELS_UA[raw_class]
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
 
-                # Draw bounding box (завжди, незалежно від cooldown)
                 cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 0, 255), 2)
                 label_text = f"{int(confidence * 100)}% - {db_class}"
                 cv2.putText(annotated, label_text, (x1, y1 - 8),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
-                # Cooldown-перевірка: використовуємо нормалізований клас
                 last_time = self._last_detection_time.get(db_class, 0.0)
                 if now - last_time < DETECTION_COOLDOWN_SECONDS:
                     logger.debug(
                         f"Camera {self.camera_id}: cooldown active for '{db_class}' "
-                        f"({DETECTION_COOLDOWN_SECONDS - (now - last_time):.1f}s залишилось)"
+                        f"({DETECTION_COOLDOWN_SECONDS - (now - last_time):.1f}s)"
                     )
                     continue
 
-                # Оновлюємо час останнього виявлення (нормалізований клас)
                 self._last_detection_time[db_class] = now
 
                 # Save screenshot
                 ts = datetime.now(timezone.utc)
                 screenshot_path = self._save_screenshot(annotated, ts)
 
-                # Persist detection asynchronously (зберігаємо нормалізований клас)
                 if self._loop and not self._loop.is_closed():
                     asyncio.run_coroutine_threadsafe(
                         self._persist_detection(db_class, label_ua, confidence, screenshot_path, ts),
@@ -343,7 +317,6 @@ class CameraWorker:
         self, raw_class: str, label_ua: str, confidence: float,
         screenshot_path: Optional[str], detected_at: datetime
     ):
-        # Determine status via confidence routing
         if confidence >= 0.70:
             status = "ARCHIVED"
         elif confidence >= 0.21:
@@ -379,7 +352,6 @@ class CameraWorker:
             f"conf={confidence:.2f} status={status} cam={self.camera_id}"
         )
 
-        # Broadcast alert to operator WebSockets (for PENDING and ARCHIVED)
         if status in ("PENDING", "ARCHIVED"):
             alert_payload = {
                 "type": "detection",
@@ -397,11 +369,9 @@ class CameraWorker:
             }
             await broadcast_alert(alert_payload)
 
-        # For confirmed/archived detections, generate embedding
         if status in ("ARCHIVED", "CONFIRMED"):
             await self._index_embedding(detection_id, label_ua, detected_at)
 
-        # Auto-trigger threat analysis
         if status != "TRASH":
             await self._check_threat_escalation(detection_id, raw_class)
 
@@ -432,7 +402,6 @@ class CameraWorker:
         try:
             session_factory = _get_db_session_factory()
             async with session_factory() as session:
-                # Rule 1: 3+ same class same camera in 10 min → CRITICAL
                 result = await session.execute(
                     text("""
                         SELECT COUNT(*) FROM detections
@@ -451,11 +420,10 @@ class CameraWorker:
                 if same_class_count >= 3:
                     threat_level = "CRITICAL"
                     reasoning = (
-                        f"{same_class_count} виявлень класу '{class_name}' "
-                        f"на камері '{self.camera_name}' за останні 10 хвилин."
+                        f"{same_class_count} class detection '{class_name}' "
+                        f"on the camera '{self.camera_name}' in the last 10 minutes"
                     )
                 else:
-                    # Rule 2: Multiple classes at same location in 5 min → HIGH
                     result2 = await session.execute(
                         text("""
                             SELECT COUNT(DISTINCT class_name) FROM detections d
@@ -470,8 +438,8 @@ class CameraWorker:
                     if distinct_classes >= 2:
                         threat_level = "HIGH"
                         reasoning = (
-                            f"{distinct_classes} різних класів загроз зафіксовано "
-                            f"на локації '{self.location_name}' за останні 5 хвилин."
+                            f"{distinct_classes} different threat classes were detected "
+                            f"at location '{self.location_name}' in the last 5 minutes"
                         )
 
                 if threat_level:
@@ -489,7 +457,7 @@ class CameraWorker:
             logger.error(f"Threat escalation check failed: {e}")
 
 
-# ── Public API ───────────────────────────────────────────────────────────────
+# Public API
 
 def start_worker(camera_id: int, camera_name: str, stream_url: str,
                  location_name: str, loop: asyncio.AbstractEventLoop):

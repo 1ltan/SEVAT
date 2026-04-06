@@ -3,14 +3,14 @@ from typing import Optional, List, Any
 from pydantic import BaseModel, Field
 
 
-# ---------- Responses ----------
+# Responses 
 class APIResponse(BaseModel):
     success: bool = True
     data: Any = None
     error: Optional[str] = None
 
 
-# ---------- Cameras ----------
+# Cameras
 class CameraCreate(BaseModel):
     name: str
     stream_url: str
@@ -43,7 +43,7 @@ class CameraOut(BaseModel):
         from_attributes = True
 
 
-# ---------- Detections ----------
+# Detections
 class DetectionOut(BaseModel):
     id: int
     camera_id: int
@@ -65,7 +65,7 @@ class DetectionOut(BaseModel):
 
 
 class DetectionPatch(BaseModel):
-    action: str  # confirm | reject | correct
+    action: str
     correction: Optional[str] = None
 
 
@@ -77,17 +77,17 @@ class DetectionFilter(BaseModel):
     class_name: Optional[str] = None
 
 
-# ---------- Analytics ----------
+# Analytics
 class ReportRequest(BaseModel):
     date_from: datetime
     date_to: datetime
     camera_ids: Optional[List[int]] = None
     class_names: Optional[List[str]] = None
-    group_by: str = "day"  # day | camera | class
+    group_by: str = "day"
 
 
 
-# ---------- Agent ----------
+# Agent
 class ChatRequest(BaseModel):
     session_id: str
     message: str

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getTrash, purgeTrash, restoreFromTrash, getScreenshotUrl } from "../api/client";
 import { useLanguage } from "../context/LanguageContext";
 
-// ── Expiry countdown helper ────────────────────────────────────────────────────
+// Expiry countdown helper
 function getDaysLeft(reviewedAt) {
     if (!reviewedAt) return null;
     const expiry = new Date(reviewedAt).getTime() + 30 * 24 * 60 * 60 * 1000;
@@ -63,7 +63,7 @@ function ExpiryBadge({ reviewedAt, t }) {
     );
 }
 
-// ── Main Trash page ────────────────────────────────────────────────────────────
+// Main Trash page
 export default function Trash() {
     const { t } = useLanguage();
     const queryClient = useQueryClient();

@@ -8,13 +8,13 @@ import { getSummary, generateReport, generatePdfReport, getCameras } from "../ap
 import { useLanguage } from "../context/LanguageContext";
 
 const PIE_COLORS = [
-    "#ff1a1a", // Deep Red
-    "#ff6600", // Amber/Orange
-    "#555555", // Steel Gray
-    "#00aaff", // HUD Blue
-    "#ffcc00", // Warning Yellow
-    "#808080", // Lighter Gray
-    "#cc0000", // Dark Red
+    "#ff1a1a", 
+    "#ff6600", 
+    "#555555",
+    "#00aaff",
+    "#ffcc00", 
+    "#808080", 
+    "#cc0000", 
 ];
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -205,7 +205,7 @@ export default function Analytics() {
                 </div>
                 {pdfError && (
                     <div style={{ color: "var(--danger, #ff4444)", fontSize: 12, marginTop: 8 }}>
-                        ⚠ {pdfError}
+                         {pdfError}
                     </div>
                 )}
                 <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>

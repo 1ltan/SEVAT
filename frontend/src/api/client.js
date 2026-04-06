@@ -39,7 +39,7 @@ export const getSummary = () => api.get("/analytics/summary");
 export const generateReport = (data) => api.post("/analytics/report", data);
 export const generatePdfReport = async (data) => {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120_000); // 120s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 120_000);
     let response;
     try {
         response = await fetch("/api/analytics/report/pdf", {
@@ -50,12 +50,12 @@ export const generatePdfReport = async (data) => {
         });
     } catch (e) {
         clearTimeout(timeoutId);
-        if (e.name === "AbortError") throw new Error("Timeout: генерація PDF перевищила 120 секунд.");
+        if (e.name === "AbortError") throw new Error("Timeout: PDF generation exceeded 120 seconds");
         throw e;
     }
     clearTimeout(timeoutId);
     if (!response.ok) {
-        let errMsg = "Помилка генерації PDF";
+        let errMsg = "PDF generation error";
         try {
             const errBody = await response.text();
             const parsed = JSON.parse(errBody);

@@ -22,7 +22,6 @@ TRASH_RETENTION_DAYS = 30
 
 
 async def daily_trash_purge():
-    """Daily APScheduler job: permanently delete TRASH items older than 30 days."""
     cutoff = datetime.now(timezone.utc) - timedelta(days=TRASH_RETENTION_DAYS)
     async with AsyncSessionLocal() as session:
         result = await session.execute(
@@ -86,8 +85,6 @@ app.include_router(agent.router)
 async def health():
     return {"status": "ok"}
 
-
-# WebSocket endpoint
 @app.websocket("/ws/stream/{camera_id}")
 async def ws_stream(websocket: WebSocket, camera_id: int):
     await websocket.accept()
@@ -113,7 +110,6 @@ async def ws_stream(websocket: WebSocket, camera_id: int):
         await unregister_ws(camera_id, queue)
 
 
-# Alert WebSocket endpoint
 @app.websocket("/ws/alerts")
 async def ws_alerts(websocket: WebSocket):
     """Push detection alerts to operators in real time."""

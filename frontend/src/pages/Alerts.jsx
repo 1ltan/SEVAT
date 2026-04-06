@@ -56,7 +56,7 @@ function DetectionCard({ det, prevIds, onImageClick }) {
                     </span>
                     {det.threat_level && (
                         <span className={`badge badge-${det.threat_level?.toLowerCase()}`}>
-                            ⚡ {det.threat_level}
+                             {det.threat_level}
                         </span>
                     )}
                 </div>
