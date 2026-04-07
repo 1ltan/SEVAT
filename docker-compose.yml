@@ -35,6 +35,7 @@ services:
       postgres:
         condition: service_healthy
     volumes:
+      - ./backend/app:/app/app
       - ./runs:/app/runs:ro
       - screenshots:/data/screenshots
     ports:

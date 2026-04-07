@@ -126,8 +126,8 @@ const translations = {
             newChat: "Новий чат",
             welcomeTitle: "Шенг",
             placeholder: "Постав питання Шенгу",
-            send: "Send",
-            sending: "...",
+            send: "Надіслати",
+            sending: "Надсилаємо...",
             errorPrefix: "Помилка: ",
             examples: [
                 "Скільки танків зафіксовано сьогодні?",

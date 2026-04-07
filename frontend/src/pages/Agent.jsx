@@ -123,9 +123,14 @@ export default function Agent() {
                                 display: "flex", alignItems: "center", justifyContent: "center",
                                 fontSize: 14, flexShrink: 0,
                             }}>
-                                {msg.role === "user" ? "" : ""}
+                                {msg.role === "user" ? "O" : "S"}
                             </div>
-                            <div className={`chat-bubble ${msg.role}`}>{msg.content}</div>
+                            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", marginLeft: 8 }}>
+                                    {msg.role === "user" ? "Operator" : "Sheng"}
+                                </div>
+                                <div className={`chat-bubble ${msg.role}`}>{msg.content}</div>
+                            </div>
                         </div>
                     ))}
 
@@ -137,9 +142,14 @@ export default function Agent() {
                                 border: "1px solid var(--accent-dim)",
                                 display: "flex", alignItems: "center", justifyContent: "center",
                                 fontSize: 14, flexShrink: 0,
-                            }}></div>
-                            <div className="chat-bubble assistant">
-                                {streamingText}<span className="cursor-blink" />
+                            }}>S</div>
+                            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", marginLeft: 8 }}>
+                                    Sheng
+                                </div>
+                                <div className="chat-bubble assistant">
+                                    {streamingText}<span className="cursor-blink" />
+                                </div>
                             </div>
                         </div>
                     )}
@@ -150,9 +160,14 @@ export default function Agent() {
                                 width: 32, height: 32, borderRadius: "50%",
                                 background: "var(--bg-card)", border: "1px solid var(--border)",
                                 display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0,
-                            }}></div>
-                            <div className="chat-bubble assistant" style={{ color: "var(--text-secondary)" }}>
-                                <span className="cursor-blink" />
+                            }}>S</div>
+                            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", marginLeft: 8 }}>
+                                    Sheng
+                                </div>
+                                <div className="chat-bubble assistant" style={{ color: "var(--text-secondary)" }}>
+                                    <span className="cursor-blink" />
+                                </div>
                             </div>
                         </div>
                     )}

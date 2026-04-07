@@ -34,27 +34,56 @@ async def _query_db(sql: str, params: dict = None, timeout: float = 10.0) -> Lis
         )
         return result.fetchall()
 
+
 class AgentState(TypedDict):
     session_id: str
     user_message: str
-    intent: str 
+    intent: str
     rag_context: str
     analysis_result: str
     final_response: str
 
+
 async def router_node(state: AgentState) -> AgentState:
     msg = state["user_message"].lower()
-    if any(kw in msg for kw in ["how many", "show", "recorded", "detected", "threats", "cameras", "today", "records"]):
+
+    # Ukrainian + English keywords for data queries
+    rag_keywords = [
+        # Ukrainian
+        "скільки", "які", "яких", "яке", "покажи", "показати", "виявлен", "виявлено",
+        "зафіксован", "зафіксовано", "об'єкт", "обєкт", "загроз", "камер", "сьогодні",
+        "записи", "список", "всі", "все", "усі", "усе", "статистик", "підсумок",
+        "інформац", "дані", "данні", "кількість", "всього", "разом", "востаннє",
+        "останні", "нещодавно", "зараз", "поточн", "активн",
+        # English
+        "how many", "show", "recorded", "detected", "threats", "cameras", "today",
+        "records", "last", "count", "list", "total", "summary", "stats",
+        "incidents", "objects", "info", "all", "current", "active",
+    ]
+
+    analysis_keywords = [
+        # Ukrainian
+        "аналіз", "небезпек", "оцінк", "рівень загроз", "безпек", "ризик", "статус",
+        "загрозлив", "критичн",
+        # English
+        "analysis", "threat", "danger", "assessment", "level", "risk", "security", "status",
+    ]
+
+    if any(kw in msg for kw in rag_keywords):
         intent = "RAG_QUERY"
-    elif any(kw in msg for kw in ["analysis", "threat", "danger", "assessment", "level"]):
+    elif any(kw in msg for kw in analysis_keywords):
         intent = "THREAT_ANALYSIS"
     else:
-        intent = "GENERAL"
+        # Default: always query DB so we have real data for any question
+        intent = "RAG_QUERY"
+
     logger.info(f"Router intent: {intent} for message: '{state['user_message'][:60]}'")
     return {**state, "intent": intent}
 
+
 async def rag_node(state: AgentState) -> AgentState:
     try:
+        # Overall statistics
         stats_rows = await _query_db(
             """
             SELECT
@@ -69,19 +98,40 @@ async def rag_node(state: AgentState) -> AgentState:
             timeout=10.0,
         )
 
-        stats_context = ""
         if stats_rows:
             s = stats_rows[0]
             stats_context = (
-                f"\nEXACT STATISTICS FROM THE DATABASE\n"
+                f"\n=== EXACT STATISTICS FROM THE DATABASE ===\n"
                 f"Confirmed detections: {s[0]}\n"
                 f"Archived detections: {s[1]}\n"
                 f"Pending verification: {s[2]}\n"
-                f"Total: {s[3]}\n"
+                f"Total (non-trash): {s[3]}\n"
                 f"Active cameras with detections: {s[4]}\n"
-                f"END OF STATISTICS\n"
             )
+        else:
+            stats_context = "\n=== EXACT STATISTICS FROM THE DATABASE ===\nNo data in database.\n"
 
+        # Per-class breakdown
+        class_rows = await _query_db(
+            """
+            SELECT class_name, COUNT(*) AS cnt
+            FROM detections
+            WHERE status != 'TRASH'
+            GROUP BY class_name
+            ORDER BY cnt DESC
+            """,
+            timeout=10.0,
+        )
+
+        if class_rows:
+            class_lines = [f"  {r[0]}: {r[1]}" for r in class_rows]
+            stats_context += "Breakdown by detected class:\n" + "\n".join(class_lines) + "\n"
+        else:
+            stats_context += "Breakdown by detected class: no records found in database\n"
+
+        stats_context += "=== END OF STATISTICS ===\n"
+
+        # Recent detections list
         rows = await _query_db(
             """
             SELECT d.class_name, d.confidence, d.detected_at, d.status,
@@ -90,32 +140,34 @@ async def rag_node(state: AgentState) -> AgentState:
             JOIN cameras c ON c.id = d.camera_id
             WHERE d.status != 'TRASH'
             ORDER BY d.detected_at DESC
-            LIMIT 10
+            LIMIT 20
             """,
             timeout=10.0,
         )
 
         if not rows:
-            list_context = "No records found in the database"
+            list_context = "Recent detections: no records found in the database."
         else:
             context_parts = []
             for r in rows:
                 context_parts.append(
-                    f"- {r[0]} ({int(r[1]*100)}%) on camera '{r[4]}' "
-                    f"(location: {r[5]}), time: {r[2]}, status: {r[3]}"
+                    f"- {r[0]} ({int(r[1]*100)}%) | camera: '{r[4]}' "
+                    f"| location: {r[5]} | time: {r[2]} | status: {r[3]}"
                 )
-            list_context = "Recent detections:\n" + "\n".join(context_parts)
+            list_context = "Recent detections (up to 20):\n" + "\n".join(context_parts)
 
         context = stats_context + "\n" + list_context
-        logger.info(f"RAG node fetched stats + {len(rows)} recent rows")
+        logger.info(f"RAG node: stats OK, {len(class_rows)} classes, {len(rows)} recent rows")
+
     except asyncio.TimeoutError:
         logger.error("RAG node: DB query timed out")
-        context = "Failed to retrieve data — database query timeout exceeded"
+        context = "Database query timed out — data unavailable."
     except Exception as e:
         logger.error(f"RAG node error: {e}")
-        context = "Failed to retrieve data from the database"
+        context = f"Database error: {e}"
 
     return {**state, "rag_context": context}
+
 
 async def analysis_node(state: AgentState) -> AgentState:
     try:
@@ -131,56 +183,56 @@ async def analysis_node(state: AgentState) -> AgentState:
             """,
             timeout=10.0,
         )
-        summary_parts = []
-        for r in rows:
-            summary_parts.append(
-                f"{r[0]} ({int(r[1]*100)}%) — {r[4]}/{r[5]}, "
-                f"status: {r[3]}, threat: {r[6] or 'N/A'}"
-            )
-        if summary_parts:
-            analysis = "Latest detections:\n" + "\n".join(summary_parts)
+        if rows:
+            summary_parts = []
+            for r in rows:
+                summary_parts.append(
+                    f"{r[0]} ({int(r[1]*100)}%) — {r[4]}/{r[5]}, "
+                    f"status: {r[3]}, threat_level: {r[6] or 'N/A'}"
+                )
+            analysis = "=== THREAT ANALYSIS DATA (EXACT FROM DB) ===\n" + "\n".join(summary_parts)
         else:
-            analysis = "No detections found"
+            analysis = "=== THREAT ANALYSIS DATA ===\nNo detections found in database."
     except asyncio.TimeoutError:
         logger.error("Analysis node: DB query timed out")
-        analysis = "Failed to retrieve analytics — timeout exceeded"
+        analysis = "Database timeout — analytics unavailable."
     except Exception as e:
         logger.error(f"Analysis node error: {e}")
-        analysis = ""
+        analysis = f"Database error: {e}"
     return {**state, "analysis_result": analysis}
 
-async def chat_node(state: AgentState) -> AgentState:
-    return {**state}
 
 async def synthesize_node(state: AgentState) -> AgentState:
     intent = state["intent"]
     user_msg = state["user_message"]
 
-    system_prompt = (
-        "You are Sheng. You are an AI assistant for a military threat detection system. Position yourself as an advisor, answer questions if asked, do not impose yourself. "
-        "Your goal is to provide accurate and reliable information based solely on the provided data. "
-        "Do not mention that you are an AI assistant for a military threat detection system — just introduce yourself as Sheng and say you are a personal advisor. "
-        "Do not repeat that you are a personal advisor every time — just answer the questions. "
-        "Answer in Ukrainian or English depending on the user's language, clearly and concisely. "
-        "CRITICAL: if the context includes the block 'EXACT STATISTICS FROM THE DATABASE' — "
-        "use ONLY the numbers specified there. "
-        "NEVER invent, estimate, or assume numerical values (number of detections, cameras, etc.) "
-        "if they are not present in the provided context. "
-        "If no data is available — explicitly say the information is unavailable. "
-        "If your token limit is reached, simply respond with (450)."
-
-    )
-
     if intent == "RAG_QUERY":
-        context_block = f"\nDatabase context:\n{state['rag_context']}\n" if state.get("rag_context") else ""
-        full_prompt = f"{system_prompt}\n{context_block}\nUser: {user_msg}"
+        db_ctx = state.get("rag_context", "No data")
+        full_prompt = (
+            "Your name is Sheng (Шенг). You are a military AI analyst for the SEVAT system. "
+            "Answer ONLY based on the database data below. "
+            "Do NOT invent numbers. Reply in the same language as the user's question.\n\n"
+            f"[DATABASE DATA]\n{db_ctx}\n[END]\n\n"
+            f"User question: {user_msg}\n\nAnswer:"
+        )
     elif intent == "THREAT_ANALYSIS":
-        context_block = f"\nDetections analytics:\n{state['analysis_result']}\n" if state.get("analysis_result") else ""
-        full_prompt = f"{system_prompt}\n{context_block}\nUser: {user_msg}"
+        db_ctx = state.get("analysis_result", "No data")
+        full_prompt = (
+            "Your name is Sheng (Шенг). You are a military AI analyst for the SEVAT system. "
+            "Analyze ONLY the data below. "
+            "Do NOT invent numbers. Reply in the same language as the user's question.\n\n"
+            f"[DETECTION DATA]\n{db_ctx}\n[END]\n\n"
+            f"User question: {user_msg}\n\nAnswer:"
+        )
     else:
-        full_prompt = f"{system_prompt}\n\nUser: {user_msg}"
+        full_prompt = (
+            "Your name is Sheng (Шенг). You are a military AI analyst for the SEVAT system. "
+            "Answer concisely. Reply in the same language as the user's question.\n\n"
+            f"User question: {user_msg}\n\nAnswer:"
+        )
 
     return {**state, "final_response": full_prompt}
+
 
 async def run_agent(session_id: str, message: str) -> AsyncGenerator[str, None]:
     state: AgentState = {
@@ -199,7 +251,6 @@ async def run_agent(session_id: str, message: str) -> AsyncGenerator[str, None]:
     elif state["intent"] == "THREAT_ANALYSIS":
         state = await analysis_node(state)
 
-    state = await chat_node(state)
     state = await synthesize_node(state)
 
     prompt = state["final_response"]
@@ -232,7 +283,7 @@ async def run_agent(session_id: str, message: str) -> AsyncGenerator[str, None]:
 
     except asyncio.TimeoutError:
         logger.error("Gemini response timed out")
-        yield "Error: AI response timeout exceeded"
+        yield "Помилка: час очікування відповіді вичерпано."
     except Exception as e:
         logger.error(f"Gemini streaming error: {e}")
-        yield f"Error {str(e)}"
+        yield f"Помилка: {str(e)}"
